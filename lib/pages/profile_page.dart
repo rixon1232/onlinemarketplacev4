@@ -1,24 +1,31 @@
+// File: /lib/pages/profile_page.dart
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-
 import '../components/my_drawer.dart';
 
 class ProfilePage extends StatefulWidget {
-  const ProfilePage({super.key});
+  // Accept an optional parameter. If provided, we'll show that user's profile.
+  final String? userEmail;
+
+  const ProfilePage({super.key, this.userEmail});
 
   @override
   State<ProfilePage> createState() => _ProfilePageState();
 }
 
 class _ProfilePageState extends State<ProfilePage> {
-  final User? currentUser = FirebaseAuth.instance.currentUser;
   final bioController = TextEditingController();
+
+  // Use the passed userEmail or default to the current user's email.
+  String get displayEmail {
+    return widget.userEmail ?? FirebaseAuth.instance.currentUser!.email!;
+  }
 
   Future<DocumentSnapshot<Map<String, dynamic>>> getUserDetails() async {
     return await FirebaseFirestore.instance
         .collection("Users")
-        .doc(currentUser!.email!)
+        .doc(displayEmail)
         .get();
   }
 
@@ -41,7 +48,7 @@ class _ProfilePageState extends State<ProfilePage> {
               try {
                 await FirebaseFirestore.instance
                     .collection("Users")
-                    .doc(currentUser!.email!)
+                    .doc(displayEmail)
                     .update({'bio': bioController.text});
                 bioController.clear();
                 if (context.mounted) {
@@ -60,24 +67,31 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   void signOut() async {
-    await FirebaseAuth.instance.signOut();
+    // Only allow sign out if we're viewing the current user's profile.
+    if (widget.userEmail == null) {
+      await FirebaseAuth.instance.signOut();
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    // Determine if this is the current user's profile.
+    bool isCurrentUser = widget.userEmail == null;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text("Profile"),
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
         elevation: 0,
         actions: [
-          IconButton(
-            onPressed: signOut,
-            icon: const Icon(Icons.logout),
-          )
+          if (isCurrentUser)
+            IconButton(
+              onPressed: signOut,
+              icon: const Icon(Icons.logout),
+            )
         ],
       ),
-      drawer: const MyDrawer(),
+      drawer: isCurrentUser ? const MyDrawer() : null,
       backgroundColor: Theme.of(context).colorScheme.surface,
       body: Padding(
         padding: const EdgeInsets.all(20.0),
@@ -90,6 +104,9 @@ class _ProfilePageState extends State<ProfilePage> {
               return Center(child: Text("Error: ${snapshot.error}"));
             } else if (snapshot.hasData) {
               Map<String, dynamic>? user = snapshot.data!.data();
+              if (user == null) {
+                return const Center(child: Text("User data not found"));
+              }
               return ListView(
                 children: [
                   Column(
@@ -113,7 +130,7 @@ class _ProfilePageState extends State<ProfilePage> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  user!['username'] ?? "No Username",
+                                  user['username'] ?? "No Username",
                                   style: TextStyle(
                                     fontSize: 24,
                                     fontWeight: FontWeight.bold,
@@ -148,21 +165,23 @@ class _ProfilePageState extends State<ProfilePage> {
                                   .inversePrimary),
                         ),
                       ),
-                      const SizedBox(height: 20),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 10),
-                        child: GestureDetector(
-                          onTap: editBio,
-                          child: Text(
-                            "Edit Bio",
-                            style: TextStyle(
-                                fontSize: 16,
-                                color: Theme.of(context)
-                                    .colorScheme
-                                    .inversePrimary),
+                      if (isCurrentUser) ...[
+                        const SizedBox(height: 20),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 10),
+                          child: GestureDetector(
+                            onTap: editBio,
+                            child: Text(
+                              "Edit Bio",
+                              style: TextStyle(
+                                  fontSize: 16,
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .inversePrimary),
+                            ),
                           ),
                         ),
-                      ),
+                      ],
                     ],
                   ),
                 ],
@@ -176,3 +195,4 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 }
+
