@@ -1,12 +1,11 @@
-// In my_drawer.dart
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:marketplaceappv4/auth/auth.dart'; // Ensure AuthPage is imported
+import 'package:marketplaceappv4/auth/auth.dart';
 
 class MyDrawer extends StatelessWidget {
-  const MyDrawer({super.key});
+  const MyDrawer({Key? key}) : super(key: key);
 
-  // Updated logout method with context parameter
+  // Log out method: signs out and navigates back to the AuthPage.
   void logout(BuildContext context) async {
     await FirebaseAuth.instance.signOut();
     Navigator.pushAndRemoveUntil(
@@ -23,10 +22,12 @@ class MyDrawer extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
+          // Upper part: Home, Profile, and Messages
           Column(
             children: [
               DrawerHeader(
-                child: Icon(Icons.favorite),
+                child: Icon(Icons.favorite,
+                    size: 80, color: Theme.of(context).colorScheme.primary),
               ),
               const SizedBox(height: 25),
               // Home Tile
@@ -44,6 +45,7 @@ class MyDrawer extends StatelessWidget {
                   },
                 ),
               ),
+              const SizedBox(height: 25),
               // Profile Tile
               Padding(
                 padding: const EdgeInsets.only(left: 25.0),
@@ -70,13 +72,14 @@ class MyDrawer extends StatelessWidget {
                   title: const Text('Messages'),
                   onTap: () {
                     Navigator.pop(context);
-                    Navigator.pushNamed(context, '/user_page');
+                    // Route to our new Conversations page.
+                    Navigator.pushNamed(context, '/conversations');
                   },
                 ),
               ),
             ],
           ),
-          // Logout Tile
+          // Lower part: Logout
           Padding(
             padding: const EdgeInsets.only(left: 25.0, bottom: 25),
             child: ListTile(
@@ -96,5 +99,6 @@ class MyDrawer extends StatelessWidget {
     );
   }
 }
+
 
     

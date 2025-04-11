@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import '../components/my_drawer.dart';
 
 class ProfilePage extends StatefulWidget {
-  // Accept an optional parameter. If provided, we'll show that user's profile.
+
   final String? userEmail;
 
   const ProfilePage({super.key, this.userEmail});

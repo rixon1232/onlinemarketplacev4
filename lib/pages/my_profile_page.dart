@@ -17,9 +17,12 @@ class _MyProfilePageState extends State<MyProfilePage> {
   final bioController = TextEditingController();
 
   Future<DocumentSnapshot<Map<String, dynamic>>> getUserDetails() async {
-    return await FirebaseFirestore.instance
+    if (currentUser == null) {
+      throw Exception("User not logged in");
+    }
+    return FirebaseFirestore.instance
         .collection("Users")
-        .doc(currentUser!.email!)
+        .doc(currentUser!.email)
         .get();
   }
 
@@ -42,7 +45,7 @@ class _MyProfilePageState extends State<MyProfilePage> {
               try {
                 await FirebaseFirestore.instance
                     .collection("Users")
-                    .doc(currentUser!.email!)
+                    .doc(currentUser!.email)
                     .update({'bio': bioController.text});
                 bioController.clear();
                 if (context.mounted) Navigator.pop(context);
@@ -64,10 +67,7 @@ class _MyProfilePageState extends State<MyProfilePage> {
 
   Future<void> deleteListing(String listingId) async {
     try {
-      await FirebaseFirestore.instance
-          .collection('Listings')
-          .doc(listingId)
-          .delete();
+      await FirebaseFirestore.instance.collection('Listings').doc(listingId).delete();
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Listing deleted successfully")),
       );
@@ -101,24 +101,25 @@ class _MyProfilePageState extends State<MyProfilePage> {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: AppBar(
         title: const Text("My Profile"),
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
+        backgroundColor: colorScheme.inversePrimary,
         elevation: 0,
         actions: [
           IconButton(onPressed: signOut, icon: const Icon(Icons.logout))
         ],
       ),
       drawer: const MyDrawer(),
-      backgroundColor: Theme.of(context).colorScheme.surface,
+      backgroundColor: colorScheme.surface,
       body: Padding(
         padding: const EdgeInsets.all(20.0),
         child: FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
           future: getUserDetails(),
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
+              return Center(child: CircularProgressIndicator(color: colorScheme.primary));
             } else if (snapshot.hasError) {
               return Center(child: Text("Error: ${snapshot.error}"));
             } else if (snapshot.hasData) {
@@ -133,11 +134,11 @@ class _MyProfilePageState extends State<MyProfilePage> {
                     children: [
                       CircleAvatar(
                         radius: 50,
-                        backgroundColor: Theme.of(context).colorScheme.primary,
+                        backgroundColor: colorScheme.primary,
                         child: Icon(
                           Icons.person,
                           size: 50,
-                          color: Theme.of(context).colorScheme.onPrimary,
+                          color: colorScheme.onPrimary,
                         ),
                       ),
                       const SizedBox(width: 20),
@@ -148,14 +149,12 @@ class _MyProfilePageState extends State<MyProfilePage> {
                             Text(
                               user['username'] ?? "No Username",
                               style: TextStyle(
-                                  fontSize: 24,
-                                  fontWeight: FontWeight.bold,
-                                  color: Theme.of(context)
-                                      .colorScheme
-                                      .inversePrimary),
+                                fontSize: 24,
+                                fontWeight: FontWeight.bold,
+                                color: colorScheme.inversePrimary,
+                              ),
                             ),
-                            const SizedBox(height: 5),
-                            // Hide email for privacy
+                            // Email hidden for privacy.
                           ],
                         ),
                       ),
@@ -166,9 +165,7 @@ class _MyProfilePageState extends State<MyProfilePage> {
                     padding: const EdgeInsets.symmetric(horizontal: 10),
                     child: Text(
                       user['bio'] ?? "Add Bio",
-                      style: TextStyle(
-                          fontSize: 16,
-                          color: Theme.of(context).colorScheme.inversePrimary),
+                      style: TextStyle(fontSize: 16, color: colorScheme.inversePrimary),
                     ),
                   ),
                   const SizedBox(height: 20),
@@ -178,9 +175,7 @@ class _MyProfilePageState extends State<MyProfilePage> {
                       onTap: editBio,
                       child: Text(
                         "Edit Bio",
-                        style: TextStyle(
-                            fontSize: 16,
-                            color: Theme.of(context).colorScheme.inversePrimary),
+                        style: TextStyle(fontSize: 16, color: colorScheme.inversePrimary),
                       ),
                     ),
                   ),
@@ -198,11 +193,10 @@ class _MyProfilePageState extends State<MyProfilePage> {
                         .snapshots(),
                     builder: (context, listingSnapshot) {
                       if (listingSnapshot.connectionState == ConnectionState.waiting) {
-                        return const Center(child: CircularProgressIndicator());
+                        return Center(child: CircularProgressIndicator(color: colorScheme.primary));
                       }
-                      if (!listingSnapshot.hasData ||
-                          listingSnapshot.data!.docs.isEmpty) {
-                        return const Center(child: Text("No listings found"));
+                      if (!listingSnapshot.hasData || listingSnapshot.data!.docs.isEmpty) {
+                        return Center(child: Text("No listings found", style: TextStyle(color: colorScheme.inversePrimary)));
                       }
                       final listings = listingSnapshot.data!.docs;
                       return GridView.builder(
@@ -216,12 +210,11 @@ class _MyProfilePageState extends State<MyProfilePage> {
                         ),
                         itemCount: listings.length,
                         itemBuilder: (context, index) {
-                          var listingData =
-                          listings[index].data() as Map<String, dynamic>;
+                          var listingData = listings[index].data() as Map<String, dynamic>;
                           String title = listingData['title'] ?? 'No Title';
                           String price = listingData['price'] != null
-                              ? listingData['price'].toString()
-                              : '0';
+                              ? "£${listingData['price'].toString()}"
+                              : '£0';
                           String imageUrl = '';
                           if (listingData.containsKey('imageUrls') &&
                               listingData['imageUrls'] is List &&
@@ -257,9 +250,7 @@ class _MyProfilePageState extends State<MyProfilePage> {
                                               topLeft: Radius.circular(14),
                                               topRight: Radius.circular(14)),
                                         ),
-                                        child: const Center(
-                                            child: Icon(Icons.image,
-                                                size: 50)),
+                                        child: Center(child: Icon(Icons.image, size: 50)),
                                       ),
                                     ),
                                     // Title and Price
@@ -267,17 +258,14 @@ class _MyProfilePageState extends State<MyProfilePage> {
                                       padding: const EdgeInsets.all(8.0),
                                       child: Text(
                                         title,
-                                        style: const TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 16),
+                                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                                       ),
                                     ),
                                     Padding(
                                       padding: const EdgeInsets.symmetric(horizontal: 8.0),
                                       child: Text(
-                                        "\$$price",
-                                        style: const TextStyle(
-                                            color: Colors.green, fontSize: 14),
+                                        "£$price",
+                                        style: const TextStyle(color: Colors.green, fontSize: 14),
                                       ),
                                     ),
                                     const SizedBox(height: 8),
@@ -291,7 +279,28 @@ class _MyProfilePageState extends State<MyProfilePage> {
                                 child: IconButton(
                                   icon: const Icon(Icons.delete, color: Colors.red),
                                   onPressed: () {
-                                    confirmDelete(listings[index].id);
+                                    // Confirm deletion of listing
+                                    showDialog(
+                                      context: context,
+                                      builder: (context) => AlertDialog(
+                                        title: const Text("Delete Listing"),
+                                        content: const Text("Are you sure you want to delete this listing?"),
+                                        actions: [
+                                          TextButton(
+                                            onPressed: () => Navigator.pop(context),
+                                            child: const Text("Cancel"),
+                                          ),
+                                          TextButton(
+                                            onPressed: () {
+                                              Navigator.pop(context);
+                                              FirebaseFirestore.instance.collection('Listings').doc(listings[index].id).delete();
+                                              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Listing deleted successfully")));
+                                            },
+                                            child: const Text("Delete"),
+                                          ),
+                                        ],
+                                      ),
+                                    );
                                   },
                                 ),
                               ),
@@ -312,4 +321,3 @@ class _MyProfilePageState extends State<MyProfilePage> {
     );
   }
 }
-

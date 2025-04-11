@@ -1,17 +1,22 @@
-// File: /lib/pages/chat_detail_page.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import '../components/my_button.dart';
-import '../components/my_textfield.dart';
-import '../helper/helper_functions.dart';
+
+
+void displayMessageToUser(String message, BuildContext context) {
+  showDialog(
+    context: context,
+    builder: (context) => AlertDialog(title: Text(message)),
+  );
+}
 
 class ChatDetailPage extends StatefulWidget {
   final String conversationId;
-  const ChatDetailPage({super.key, required this.conversationId});
+  const ChatDetailPage({Key? key, required this.conversationId})
+      : super(key: key);
 
   @override
-  State<ChatDetailPage> createState() => _ChatDetailPageState();
+  _ChatDetailPageState createState() => _ChatDetailPageState();
 }
 
 class _ChatDetailPageState extends State<ChatDetailPage> {
@@ -19,26 +24,29 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
   bool isSending = false;
 
   Future<void> sendMessage() async {
-    if (messageController.text.trim().isEmpty) {
+    String text = messageController.text.trim();
+    if (text.isEmpty) {
       displayMessageToUser("Please enter a message", context);
       return;
     }
     setState(() {
       isSending = true;
     });
+    final String currentUserEmail =
+        FirebaseAuth.instance.currentUser?.email ?? "unknown";
     try {
-      // Debug: print the conversationId and message to be sent
-      print("Sending message to conversation: ${widget.conversationId}");
       await FirebaseFirestore.instance
           .collection('Chats')
           .doc(widget.conversationId)
           .collection('messages')
           .add({
-        'sender': FirebaseAuth.instance.currentUser?.email ?? "unknown",
-        'message': messageController.text.trim(),
+        'sender': currentUserEmail,
+        'message': text,
         'timestamp': FieldValue.serverTimestamp(),
       });
       messageController.clear();
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Message sent")));
     } catch (e) {
       displayMessageToUser("Error sending message: $e", context);
     } finally {
@@ -48,10 +56,105 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
     }
   }
 
+  Widget buildMessageList() {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('Chats')
+          .doc(widget.conversationId)
+          .collection('messages')
+          .orderBy('timestamp', descending: false)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting)
+          return const Center(child: CircularProgressIndicator());
+        if (snapshot.hasError)
+          return Center(child: Text("Error: ${snapshot.error}"));
+        final docs = snapshot.data?.docs ?? [];
+        if (docs.isEmpty)
+          return const Center(child: Text("No messages yet."));
+        return ListView.builder(
+          itemCount: docs.length,
+          itemBuilder: (context, index) {
+            final data = docs[index].data() as Map<String, dynamic>;
+            bool isMe = data['sender'] ==
+                FirebaseAuth.instance.currentUser?.email;
+            DateTime messageTime = DateTime.now();
+            if (data['timestamp'] is Timestamp) {
+              messageTime = (data['timestamp'] as Timestamp).toDate();
+            }
+            return Container(
+              margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+              child: Row(
+                mainAxisAlignment:
+                isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Flexible(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: isMe ? Colors.blueAccent : Colors.grey[300],
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        data['message'] ?? "",
+                        style: TextStyle(
+                            color: isMe ? Colors.white : Colors.black),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    "${messageTime.hour.toString().padLeft(2, '0')}:${messageTime.minute.toString().padLeft(2, '0')}",
+                    style: const TextStyle(fontSize: 12, color: Colors.grey),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget buildMessageInput() {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade100,
+        border: Border(top: BorderSide(color: Colors.grey.shade300)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: TextField(
+              controller: messageController,
+              decoration: const InputDecoration(
+                hintText: "Type a message...",
+                border: InputBorder.none,
+              ),
+            ),
+          ),
+          isSending
+              ? const CircularProgressIndicator()
+              : ElevatedButton(
+            onPressed: sendMessage,
+            style: ElevatedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 16, vertical: 12),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
+            ),
+            child: const Text("Send"),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    // Debug: log that the ChatDetailPage is opened with the correct conversationId
-    print("Opened ChatDetailPage for conversation: ${widget.conversationId}");
     return Scaffold(
       appBar: AppBar(
         title: const Text("Chat"),
@@ -59,75 +162,10 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
       ),
       body: Column(
         children: [
-          Expanded(
-            child: StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance
-                  .collection('Chats')
-                  .doc(widget.conversationId)
-                  .collection('messages')
-                  .orderBy('timestamp', descending: false)
-                  .snapshots(),
-              builder: (context, snapshot) {
-                // Debug: print snapshot data to the console
-                print("Snapshot docs: ${snapshot.data?.docs}");
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                  return const Center(child: Text("No messages yet."));
-                }
-                final messages = snapshot.data!.docs;
-                return ListView.builder(
-                  itemCount: messages.length,
-                  itemBuilder: (context, index) {
-                    var messageData =
-                    messages[index].data() as Map<String, dynamic>;
-                    bool isMe = messageData['sender'] ==
-                        FirebaseAuth.instance.currentUser?.email;
-                    return Container(
-                      alignment:
-                      isMe ? Alignment.centerRight : Alignment.centerLeft,
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 4),
-                      child: Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: isMe ? Colors.blue[200] : Colors.grey[300],
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(messageData['message'] ?? ""),
-                      ),
-                    );
-                  },
-                );
-              },
-            ),
-          ),
-          const Divider(height: 1),
-          Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: Row(
-              children: [
-                Expanded(
-                  child: MyTextField(
-                    hintText: "Type a message...",
-                    obscureText: false,
-                    controller: messageController,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                isSending
-                    ? const CircularProgressIndicator()
-                    : MyButton(
-                  text: "Send",
-                  onTap: sendMessage,
-                ),
-              ],
-            ),
-          ),
+          Expanded(child: buildMessageList()),
+          buildMessageInput(),
         ],
       ),
     );
   }
 }
-

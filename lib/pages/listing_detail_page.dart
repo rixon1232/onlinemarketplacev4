@@ -1,60 +1,70 @@
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 class ListingDetailPage extends StatefulWidget {
   final Map<String, dynamic> listingData;
-  final String listingId; // Firestore document ID for the listing
+  final String listingId;
 
   const ListingDetailPage({
-    super.key,
+    Key? key,
     required this.listingData,
     required this.listingId,
-  });
+  }) : super(key: key);
 
   @override
-  State<ListingDetailPage> createState() => _ListingDetailPageState();
+  _ListingDetailPageState createState() => _ListingDetailPageState();
 }
 
 class _ListingDetailPageState extends State<ListingDetailPage> {
   final TextEditingController messageController = TextEditingController();
   bool isSending = false;
 
-  // Generate a conversation ID using listingId and buyer email.
+
   String getConversationId() {
-    String buyer = FirebaseAuth.instance.currentUser?.email ?? "unknown";
-    return "${widget.listingId}_$buyer";
+    String buyerEmail = FirebaseAuth.instance.currentUser?.email ?? "unknown";
+    String sellerEmail = widget.listingData['sellerId'] ?? "unknown";
+    // Ensure the listingId is non-empty.
+    String nonEmptyListingId =
+    widget.listingId.trim().isEmpty ? "defaultListingId" : widget.listingId;
+    List<String> participants = [buyerEmail, sellerEmail];
+    participants.sort(); // Sorting ensures both users get the same order.
+    final conversationId = "${nonEmptyListingId}_${participants.join('_')}";
+    print("Generated Conversation ID: $conversationId");
+    return conversationId;
   }
 
+
   Future<void> sendMessage() async {
-    if (messageController.text.trim().isEmpty) return;
+    String text = messageController.text.trim();
+    if (text.isEmpty) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text("Please enter a message")));
+      return;
+    }
     setState(() {
       isSending = true;
     });
     String conversationId = getConversationId();
-    String sellerId = widget.listingData['sellerId'] ?? "unknown";
+    final String currentUserEmail =
+        FirebaseAuth.instance.currentUser?.email ?? "unknown";
+
     try {
       await FirebaseFirestore.instance
           .collection('Chats')
           .doc(conversationId)
           .collection('messages')
           .add({
-        'sender': FirebaseAuth.instance.currentUser?.email ?? "unknown",
-        'message': messageController.text.trim(),
+        'sender': currentUserEmail,
+        'message': text,
         'timestamp': FieldValue.serverTimestamp(),
-        'sellerId': sellerId,
-        'buyerId': FirebaseAuth.instance.currentUser?.email ?? "unknown",
       });
       messageController.clear();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Message sent")),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text("Message sent")));
     } catch (e) {
-      // Optionally, use a helper function to show error messages.
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Error sending message: $e")),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text("Error sending message: $e")));
     } finally {
       setState(() {
         isSending = false;
@@ -62,130 +72,135 @@ class _ListingDetailPageState extends State<ListingDetailPage> {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    // Convert stored date (ISO string) back to DateTime
-    DateTime datePosted = DateTime.tryParse(widget.listingData['createdAt'] ?? "") ?? DateTime.now();
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.listingData['title'] ?? 'Listing Details'),
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-      ),
-      body: Column(
+  Widget buildProductDetails() {
+    final colorScheme = Theme.of(context).colorScheme;
+    DateTime datePosted =
+        DateTime.tryParse(widget.listingData['createdAt'] ?? "") ?? DateTime.now();
+
+    return Card(
+      elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      margin: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Listing image and details
-          Expanded(
-            child: SingleChildScrollView(
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Display main image
-                    widget.listingData.containsKey('imageUrls') &&
-                        widget.listingData['imageUrls'] is List &&
-                        widget.listingData['imageUrls'].isNotEmpty
-                        ? ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: Image.network(
-                        widget.listingData['imageUrls'][0],
-                        height: 200,
-                        width: double.infinity,
-                        fit: BoxFit.cover,
-                      ),
-                    )
-                        : Container(
-                      height: 200,
-                      color: Colors.grey.shade300,
-                      child: const Center(child: Icon(Icons.image, size: 50)),
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      widget.listingData['title'] ?? 'No Title',
-                      style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      widget.listingData['description'] ?? 'No Description',
-                      style: const TextStyle(fontSize: 16),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      "Price: \$${widget.listingData['price'].toString()}",
-                      style: const TextStyle(fontSize: 16, color: Colors.green),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      "Posted on: ${datePosted.toLocal().toString().split(' ')[0]}",
-                      style: const TextStyle(fontSize: 14, color: Colors.grey),
-                    ),
-                    const SizedBox(height: 16),
-                    // Seller info section
-                    FutureBuilder<DocumentSnapshot>(
-                      future: FirebaseFirestore.instance
-                          .collection('Users')
-                          .doc(widget.listingData['sellerId'])
-                          .get(),
-                      builder: (context, snapshot) {
-                        if (snapshot.connectionState == ConnectionState.waiting) {
-                          return const CircularProgressIndicator();
-                        }
-                        if (!snapshot.hasData || snapshot.data!.data() == null) {
-                          return const Text("Seller: Unknown");
-                        }
-                        Map<String, dynamic> sellerData =
-                        snapshot.data!.data() as Map<String, dynamic>;
-                        String sellerName = sellerData['username'] ?? widget.listingData['sellerId'];
-                        return Row(
-                          children: [
-                            const Text("Seller: "),
-                            InkWell(
-                              onTap: () {
-                                // Navigate to SellerProfilePage using the seller's email.
-                                Navigator.pushNamed(
-                                  context,
-                                  '/seller_profile',
-                                  arguments: widget.listingData['sellerId'],
-                                );
-                              },
-                              child: Text(
-                                sellerName,
-                                style: const TextStyle(
-                                  color: Colors.blue,
-                                  decoration: TextDecoration.underline,
-                                ),
-                              ),
-                            ),
-                          ],
-                        );
-                      },
-                    ),
-                  ],
-                ),
+          // Product Image
+          ClipRRect(
+            borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(16), topRight: Radius.circular(16)),
+            child: widget.listingData.containsKey('imageUrls') &&
+                widget.listingData['imageUrls'] is List &&
+                widget.listingData['imageUrls'].isNotEmpty
+                ? Image.network(
+              widget.listingData['imageUrls'][0],
+              height: 250,
+              width: double.infinity,
+              fit: BoxFit.cover,
+            )
+                : Container(
+              height: 250,
+              color: Colors.grey.shade300,
+              child: Center(
+                child: Icon(Icons.image,
+                    size: 80, color: colorScheme.onBackground),
               ),
             ),
           ),
-          // Message box at bottom
           Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: Row(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  child: TextField(
-                    controller: messageController,
-                    decoration: const InputDecoration(
-                      hintText: "Type your message...",
-                      border: OutlineInputBorder(),
+                // Title and Price
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        widget.listingData['title'] ?? "No Title",
+                        style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          color: colorScheme.onBackground,
+                        ),
+                      ),
                     ),
-                  ),
+                    Text(
+                      "£${widget.listingData['price'].toString()}",
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.green,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 8),
-                isSending
-                    ? const CircularProgressIndicator()
-                    : ElevatedButton(
-                  onPressed: sendMessage,
-                  child: const Text("Send"),
+                const SizedBox(height: 8),
+                // Posted Date
+                Text(
+                  "Posted on: ${datePosted.toLocal().toString().split(' ')[0]}",
+                  style: TextStyle(fontSize: 14, color: colorScheme.onBackground),
+                ),
+                const SizedBox(height: 16),
+                // Description
+                Text(
+                  widget.listingData['description'] ??
+                      "No description provided",
+                  style: TextStyle(fontSize: 16, color: colorScheme.onBackground),
+                ),
+                const SizedBox(height: 16),
+                // Seller Info
+                FutureBuilder<DocumentSnapshot>(
+                  future: FirebaseFirestore.instance
+                      .collection('Users')
+                      .doc(widget.listingData['sellerId'])
+                      .get(),
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return Center(
+                          child: CircularProgressIndicator(
+                              color: colorScheme.primary));
+                    }
+                    if (!snapshot.hasData ||
+                        snapshot.data?.data() == null) {
+                      return Text("Seller: Unknown",
+                          style: TextStyle(
+                              fontSize: 16, color: colorScheme.onBackground));
+                    }
+                    Map<String, dynamic> sellerData =
+                    snapshot.data!.data() as Map<String, dynamic>;
+                    String sellerName =
+                        sellerData['username'] ?? widget.listingData['sellerId'];
+                    return Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: colorScheme.primary.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        children: [
+                          const Text("Seller: ",
+                              style: TextStyle(
+                                  fontSize: 16, fontWeight: FontWeight.bold)),
+                          InkWell(
+                            onTap: () {
+                              Navigator.pushNamed(context, '/seller_profile',
+                                  arguments:
+                                  widget.listingData['sellerId']);
+                            },
+                            child: Text(
+                              sellerName,
+                              style: TextStyle(
+                                  fontSize: 16,
+                                  color: colorScheme.primary,
+                                  decoration: TextDecoration.underline),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
                 ),
               ],
             ),
@@ -194,5 +209,87 @@ class _ListingDetailPageState extends State<ListingDetailPage> {
       ),
     );
   }
-}
 
+  /// Build the inline messaging box below the product details.
+  Widget buildMessageBox() {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.green.shade100,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        children: [
+          // Message input row
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: messageController,
+                  decoration: const InputDecoration(
+                    hintText: "Type your message...",
+                    border: InputBorder.none,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              isSending
+                  ? CircularProgressIndicator(color: Colors.green)
+                  : ElevatedButton(
+                onPressed: sendMessage,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green,
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 16, vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+                child: const Text("Send",
+                    style:
+                    TextStyle(fontSize: 16, color: Colors.white)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          ElevatedButton(
+            onPressed: () {
+              String conversationId = getConversationId();
+              Navigator.pushNamed(context, '/chat_detail',
+                  arguments: conversationId);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: colorScheme.primary,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+              padding:
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            ),
+            child: const Text("View Full Conversation",
+                style: TextStyle(fontSize: 16, color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(widget.listingData['title'] ?? "Listing Details"),
+        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
+      ),
+      body: Column(
+        children: [
+          Expanded(child: buildProductDetails()),
+          buildMessageBox(),
+        ],
+      ),
+    );
+  }
+}
