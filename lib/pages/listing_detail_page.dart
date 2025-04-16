@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 
 class ListingDetailPage extends StatefulWidget {
   final Map<String, dynamic> listingData;
-  final String listingId;
+  final String listingId; // Firestore document ID for the listing
 
   const ListingDetailPage({
     Key? key,
@@ -13,28 +13,26 @@ class ListingDetailPage extends StatefulWidget {
   }) : super(key: key);
 
   @override
-  _ListingDetailPageState createState() => _ListingDetailPageState();
+  State<ListingDetailPage> createState() => _ListingDetailPageState();
 }
 
 class _ListingDetailPageState extends State<ListingDetailPage> {
   final TextEditingController messageController = TextEditingController();
   bool isSending = false;
 
-
+  /// Generates a symmetric conversation ID using the listing ID, seller’s email, and buyer’s email.
   String getConversationId() {
     String buyerEmail = FirebaseAuth.instance.currentUser?.email ?? "unknown";
     String sellerEmail = widget.listingData['sellerId'] ?? "unknown";
-    // Ensure the listingId is non-empty.
+    // If listingId is empty, use a default string.
     String nonEmptyListingId =
     widget.listingId.trim().isEmpty ? "defaultListingId" : widget.listingId;
     List<String> participants = [buyerEmail, sellerEmail];
-    participants.sort(); // Sorting ensures both users get the same order.
-    final conversationId = "${nonEmptyListingId}_${participants.join('_')}";
-    print("Generated Conversation ID: $conversationId");
-    return conversationId;
+    participants.sort(); // Sorting ensures a consistent order.
+    return "${nonEmptyListingId}_${participants.join('_')}";
   }
 
-
+  /// Sends an inline message (for immediate feedback on this page).
   Future<void> sendMessage() async {
     String text = messageController.text.trim();
     if (text.isEmpty) {
@@ -72,11 +70,38 @@ class _ListingDetailPageState extends State<ListingDetailPage> {
     }
   }
 
+  /// Pre-populate the conversation document with metadata.
+  Future<void> initializeConversation() async {
+    final String buyerEmail =
+        FirebaseAuth.instance.currentUser?.email ?? "unknown";
+    final String sellerEmail = widget.listingData['sellerId'] ?? "unknown";
+    final String conversationId = getConversationId();
+
+    // Create or merge the parent conversation document.
+    await FirebaseFirestore.instance
+        .collection('Chats')
+        .doc(conversationId)
+        .set({
+      'productName': widget.listingData['title'] ?? "",
+      'sellerId': sellerEmail,
+      'buyerId': buyerEmail,
+      'participants': [buyerEmail, sellerEmail],
+      'lastUpdated': FieldValue.serverTimestamp(),
+      // You can also store a friendly display string:
+      'displayName': widget.listingData['title'] + " - " + sellerEmail,
+    }, SetOptions(merge: true));
+  }
+
+  @override
+  void dispose() {
+    messageController.dispose();
+    super.dispose();
+  }
 
   Widget buildProductDetails() {
     final colorScheme = Theme.of(context).colorScheme;
-    DateTime datePosted =
-        DateTime.tryParse(widget.listingData['createdAt'] ?? "") ?? DateTime.now();
+    DateTime datePosted = DateTime.tryParse(widget.listingData['createdAt'] ?? "") ??
+        DateTime.now();
 
     return Card(
       elevation: 4,
@@ -145,8 +170,7 @@ class _ListingDetailPageState extends State<ListingDetailPage> {
                 const SizedBox(height: 16),
                 // Description
                 Text(
-                  widget.listingData['description'] ??
-                      "No description provided",
+                  widget.listingData['description'] ?? "No description provided",
                   style: TextStyle(fontSize: 16, color: colorScheme.onBackground),
                 ),
                 const SizedBox(height: 16),
@@ -162,8 +186,7 @@ class _ListingDetailPageState extends State<ListingDetailPage> {
                           child: CircularProgressIndicator(
                               color: colorScheme.primary));
                     }
-                    if (!snapshot.hasData ||
-                        snapshot.data?.data() == null) {
+                    if (!snapshot.hasData || snapshot.data?.data() == null) {
                       return Text("Seller: Unknown",
                           style: TextStyle(
                               fontSize: 16, color: colorScheme.onBackground));
@@ -185,9 +208,12 @@ class _ListingDetailPageState extends State<ListingDetailPage> {
                                   fontSize: 16, fontWeight: FontWeight.bold)),
                           InkWell(
                             onTap: () {
-                              Navigator.pushNamed(context, '/seller_profile',
-                                  arguments:
-                                  widget.listingData['sellerId']);
+                              // Navigate to seller profile page.
+                              Navigator.pushNamed(
+                                context,
+                                '/seller_profile',
+                                arguments: widget.listingData['sellerId'],
+                              );
                             },
                             child: Text(
                               sellerName,
@@ -210,8 +236,7 @@ class _ListingDetailPageState extends State<ListingDetailPage> {
     );
   }
 
-  /// Build the inline messaging box below the product details.
-  Widget buildMessageBox() {
+  Widget buildInlineMessageBox() {
     final colorScheme = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.all(16),
@@ -222,7 +247,6 @@ class _ListingDetailPageState extends State<ListingDetailPage> {
       ),
       child: Column(
         children: [
-          // Message input row
           Row(
             children: [
               Expanded(
@@ -248,15 +272,15 @@ class _ListingDetailPageState extends State<ListingDetailPage> {
                   ),
                 ),
                 child: const Text("Send",
-                    style:
-                    TextStyle(fontSize: 16, color: Colors.white)),
+                    style: TextStyle(fontSize: 16, color: Colors.white)),
               ),
             ],
           ),
           const SizedBox(height: 12),
-
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
+              // Pre-populate conversation metadata before navigating.
+              await initializeConversation();
               String conversationId = getConversationId();
               Navigator.pushNamed(context, '/chat_detail',
                   arguments: conversationId);
@@ -287,7 +311,7 @@ class _ListingDetailPageState extends State<ListingDetailPage> {
       body: Column(
         children: [
           Expanded(child: buildProductDetails()),
-          buildMessageBox(),
+          buildInlineMessageBox(),
         ],
       ),
     );

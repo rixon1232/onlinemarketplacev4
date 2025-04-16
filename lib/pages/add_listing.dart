@@ -245,7 +245,7 @@ class _AddListingPageState extends State<AddListingPage> {
                   },
                 ),
                 const SizedBox(height: 30),
-                // Submit Button with explicit text color
+                // Submit Button
                 ElevatedButton(
                   onPressed: addListing,
                   style: ElevatedButton.styleFrom(

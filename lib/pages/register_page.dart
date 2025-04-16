@@ -136,7 +136,7 @@ class _RegisterPageState extends State<RegisterPage> {
                 controller: emailController,
               ),
               const SizedBox(height: 10),
-              // Password  validator feedback
+
               TextFormField(
                 controller: passwordController,
                 obscureText: true,

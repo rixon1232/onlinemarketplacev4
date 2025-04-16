@@ -67,7 +67,7 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   void signOut() async {
-    // Only allow sign out if we're viewing the current user's profile.
+
     if (widget.userEmail == null) {
       await FirebaseAuth.instance.signOut();
     }

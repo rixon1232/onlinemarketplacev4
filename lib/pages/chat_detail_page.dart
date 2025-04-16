@@ -10,6 +10,7 @@ void displayMessageToUser(String message, BuildContext context) {
   );
 }
 
+
 class ChatDetailPage extends StatefulWidget {
   final String conversationId;
   const ChatDetailPage({Key? key, required this.conversationId})
@@ -22,6 +23,28 @@ class ChatDetailPage extends StatefulWidget {
 class _ChatDetailPageState extends State<ChatDetailPage> {
   final TextEditingController messageController = TextEditingController();
   bool isSending = false;
+
+  @override
+  void initState() {
+    super.initState();
+    initializeConversationIfNeeded();
+  }
+
+
+  Future<void> initializeConversationIfNeeded() async {
+    if (widget.conversationId.trim().isEmpty) return;
+    DocumentReference conversationRef = FirebaseFirestore.instance
+        .collection('Chats')
+        .doc(widget.conversationId);
+
+
+    List<String> participants = widget.conversationId.split('_').skip(1).toList();
+
+    await conversationRef.set({
+      'lastUpdated': FieldValue.serverTimestamp(),
+      'participants': participants,
+    }, SetOptions(merge: true));
+  }
 
   Future<void> sendMessage() async {
     String text = messageController.text.trim();
@@ -45,8 +68,8 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
         'timestamp': FieldValue.serverTimestamp(),
       });
       messageController.clear();
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Message sent")));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text("Message sent")));
     } catch (e) {
       displayMessageToUser("Error sending message: $e", context);
     } finally {
@@ -70,14 +93,12 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
         if (snapshot.hasError)
           return Center(child: Text("Error: ${snapshot.error}"));
         final docs = snapshot.data?.docs ?? [];
-        if (docs.isEmpty)
-          return const Center(child: Text("No messages yet."));
+        if (docs.isEmpty) return const Center(child: Text("No messages yet."));
         return ListView.builder(
           itemCount: docs.length,
           itemBuilder: (context, index) {
             final data = docs[index].data() as Map<String, dynamic>;
-            bool isMe = data['sender'] ==
-                FirebaseAuth.instance.currentUser?.email;
+            bool isMe = data['sender'] == FirebaseAuth.instance.currentUser?.email;
             DateTime messageTime = DateTime.now();
             if (data['timestamp'] is Timestamp) {
               messageTime = (data['timestamp'] as Timestamp).toDate();
@@ -151,6 +172,12 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
         ],
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    messageController.dispose();
+    super.dispose();
   }
 
   @override
