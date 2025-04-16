@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 
 class ListingDetailPage extends StatefulWidget {
   final Map<String, dynamic> listingData;
-  final String listingId;
+  final String listingId; // Firestore document ID for this listing
 
   const ListingDetailPage({
     Key? key,
@@ -13,65 +13,46 @@ class ListingDetailPage extends StatefulWidget {
   }) : super(key: key);
 
   @override
-  _ListingDetailPageState createState() => _ListingDetailPageState();
+  State<ListingDetailPage> createState() => _ListingDetailPageState();
 }
 
 class _ListingDetailPageState extends State<ListingDetailPage> {
-  final TextEditingController messageController = TextEditingController();
-  bool isSending = false;
-
-
+  /// Generates a symmetric conversation ID using the listing ID, seller’s email, and buyer’s email.
   String getConversationId() {
     String buyerEmail = FirebaseAuth.instance.currentUser?.email ?? "unknown";
     String sellerEmail = widget.listingData['sellerId'] ?? "unknown";
-    // Ensure the listingId is non-empty.
+    // If listingId is empty, use a default string.
     String nonEmptyListingId =
     widget.listingId.trim().isEmpty ? "defaultListingId" : widget.listingId;
     List<String> participants = [buyerEmail, sellerEmail];
-    participants.sort(); // Sorting ensures both users get the same order.
-    final conversationId = "${nonEmptyListingId}_${participants.join('_')}";
-    print("Generated Conversation ID: $conversationId");
-    return conversationId;
+    participants.sort(); // Sorting ensures a consistent order.
+    return "${nonEmptyListingId}_${participants.join('_')}";
   }
 
+  /// Pre-populate the conversation document with metadata.
+  Future<void> initializeConversation() async {
+    final String buyerEmail = FirebaseAuth.instance.currentUser?.email ?? "unknown";
+    final String sellerEmail = widget.listingData['sellerId'] ?? "unknown";
+    final String conversationId = getConversationId();
 
-  Future<void> sendMessage() async {
-    String text = messageController.text.trim();
-    if (text.isEmpty) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text("Please enter a message")));
-      return;
-    }
-    setState(() {
-      isSending = true;
-    });
-    String conversationId = getConversationId();
-    final String currentUserEmail =
-        FirebaseAuth.instance.currentUser?.email ?? "unknown";
-
-    try {
-      await FirebaseFirestore.instance
-          .collection('Chats')
-          .doc(conversationId)
-          .collection('messages')
-          .add({
-        'sender': currentUserEmail,
-        'message': text,
-        'timestamp': FieldValue.serverTimestamp(),
-      });
-      messageController.clear();
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text("Message sent")));
-    } catch (e) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text("Error sending message: $e")));
-    } finally {
-      setState(() {
-        isSending = false;
-      });
-    }
+    // Create or merge the parent conversation document.
+    await FirebaseFirestore.instance
+        .collection('Chats')
+        .doc(conversationId)
+        .set({
+      'productName': widget.listingData['title'] ?? "",
+      'sellerId': sellerEmail,
+      'buyerId': buyerEmail,
+      'participants': [buyerEmail, sellerEmail],
+      'lastUpdated': FieldValue.serverTimestamp(),
+      'displayName': widget.listingData['title'] + " - " + sellerEmail,
+    }, SetOptions(merge: true));
   }
 
+  @override
+  void dispose() {
+    super.dispose();
+  }
 
   Widget buildProductDetails() {
     final colorScheme = Theme.of(context).colorScheme;
@@ -112,7 +93,7 @@ class _ListingDetailPageState extends State<ListingDetailPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Title and Price
+                // Title and Price Row
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -145,8 +126,7 @@ class _ListingDetailPageState extends State<ListingDetailPage> {
                 const SizedBox(height: 16),
                 // Description
                 Text(
-                  widget.listingData['description'] ??
-                      "No description provided",
+                  widget.listingData['description'] ?? "No description provided",
                   style: TextStyle(fontSize: 16, color: colorScheme.onBackground),
                 ),
                 const SizedBox(height: 16),
@@ -162,8 +142,7 @@ class _ListingDetailPageState extends State<ListingDetailPage> {
                           child: CircularProgressIndicator(
                               color: colorScheme.primary));
                     }
-                    if (!snapshot.hasData ||
-                        snapshot.data?.data() == null) {
+                    if (!snapshot.hasData || snapshot.data?.data() == null) {
                       return Text("Seller: Unknown",
                           style: TextStyle(
                               fontSize: 16, color: colorScheme.onBackground));
@@ -185,9 +164,12 @@ class _ListingDetailPageState extends State<ListingDetailPage> {
                                   fontSize: 16, fontWeight: FontWeight.bold)),
                           InkWell(
                             onTap: () {
-                              Navigator.pushNamed(context, '/seller_profile',
-                                  arguments:
-                                  widget.listingData['sellerId']);
+                              // Navigate to seller profile page.
+                              Navigator.pushNamed(
+                                context,
+                                '/seller_profile',
+                                arguments: widget.listingData['sellerId'],
+                              );
                             },
                             child: Text(
                               sellerName,
@@ -205,72 +187,26 @@ class _ListingDetailPageState extends State<ListingDetailPage> {
               ],
             ),
           ),
-        ],
-      ),
-    );
-  }
-
-  /// Build the inline messaging box below the product details.
-  Widget buildMessageBox() {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Container(
-      padding: const EdgeInsets.all(16),
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.green.shade100,
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Column(
-        children: [
-          // Message input row
-          Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: messageController,
-                  decoration: const InputDecoration(
-                    hintText: "Type your message...",
-                    border: InputBorder.none,
-                  ),
+          // Button to view the conversation for this listing.
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: ElevatedButton(
+              onPressed: () async {
+                await initializeConversation();
+                String conversationId = getConversationId();
+                Navigator.pushNamed(context, '/chat_detail',
+                    arguments: conversationId);
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: colorScheme.primary,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
                 ),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               ),
-              const SizedBox(width: 8),
-              isSending
-                  ? CircularProgressIndicator(color: Colors.green)
-                  : ElevatedButton(
-                onPressed: sendMessage,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green,
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 16, vertical: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                ),
-                child: const Text("Send",
-                    style:
-                    TextStyle(fontSize: 16, color: Colors.white)),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-
-          ElevatedButton(
-            onPressed: () {
-              String conversationId = getConversationId();
-              Navigator.pushNamed(context, '/chat_detail',
-                  arguments: conversationId);
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: colorScheme.primary,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
-              ),
-              padding:
-              const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: const Text("View Conversation",
+                  style: TextStyle(fontSize: 16, color: Colors.white)),
             ),
-            child: const Text("View Full Conversation",
-                style: TextStyle(fontSize: 16, color: Colors.white)),
           ),
         ],
       ),
@@ -284,12 +220,8 @@ class _ListingDetailPageState extends State<ListingDetailPage> {
         title: Text(widget.listingData['title'] ?? "Listing Details"),
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
       ),
-      body: Column(
-        children: [
-          Expanded(child: buildProductDetails()),
-          buildMessageBox(),
-        ],
-      ),
+      body: buildProductDetails(),
     );
   }
 }
+

@@ -50,6 +50,24 @@ class _ToggleHomePageState extends State<ToggleHomePage> {
       drawer: const MyDrawer(),
       body: Column(
         children: [
+          //banner
+          Container(
+            width: double.infinity,
+            color: Colors.yellow.shade100,
+            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+            child: Row(
+              children: const [
+                Icon(Icons.info_outline, color: Colors.black54),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Tips: dont accept online payments and read reviews before buying ',
+                    style: TextStyle(color: Colors.black87),
+                  ),
+                ),
+              ],
+            ),
+          ),
           // Search Bar
           Padding(
             padding: const EdgeInsets.all(16.0),
@@ -59,6 +77,7 @@ class _ToggleHomePageState extends State<ToggleHomePage> {
                   searchQuery = value;
                 });
               },
+
               decoration: InputDecoration(
                 hintText: "Search listings...",
                 border: OutlineInputBorder(
