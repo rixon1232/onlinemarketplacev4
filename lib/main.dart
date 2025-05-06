@@ -41,7 +41,7 @@ class MyApp extends StatelessWidget {
           ModalRoute.of(context)?.settings.arguments as String? ??
               "unknown",
         ),
-        // Optionally, route for a Conversations page if you have one.
+
         '/conversations': (context) => const ConversationsPage(),
       },
       onGenerateRoute: (settings) {

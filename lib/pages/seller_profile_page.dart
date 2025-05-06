@@ -12,7 +12,7 @@ class SellerProfilePage extends StatefulWidget {
 }
 
 class _SellerProfilePageState extends State<SellerProfilePage> {
-  /// Fetch seller's user document
+
   Future<DocumentSnapshot<Map<String, dynamic>>> getSellerDetails() async {
     return FirebaseFirestore.instance
         .collection('Users')
@@ -20,7 +20,7 @@ class _SellerProfilePageState extends State<SellerProfilePage> {
         .get();
   }
 
-  /// Add a review under the seller's subcollection
+
   Future<void> submitReview(int rating, String comment) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
@@ -43,7 +43,7 @@ class _SellerProfilePageState extends State<SellerProfilePage> {
     });
   }
 
-  /// Show dialog for writing a review
+
   void showReviewDialog() {
     final commentController = TextEditingController();
     int tempRating = 0;

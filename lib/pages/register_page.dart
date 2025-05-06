@@ -21,14 +21,13 @@ class _RegisterPageState extends State<RegisterPage> {
   final TextEditingController passwordController = TextEditingController();
   final TextEditingController confirmPasswordController = TextEditingController();
 
-  //  strong password check
   bool isPasswordStrong(String password) {
     //  one uppercase, one lowercase, one digit, one special character , minimum 8 characters.
     final passwordRegEx = RegExp(r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$');
     return passwordRegEx.hasMatch(password);
   }
 
-  // Register method with email verification
+  // Register method
   void registerUser() async {
     showDialog(
       context: context,

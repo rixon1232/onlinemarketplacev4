@@ -1,13 +1,15 @@
+// File: /lib/pages/add_listing.dart
+// Changed storage path and Firestore field to 'imageUrls' list to match UI expectations.
 
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 class AddListingPage extends StatefulWidget {
-  const AddListingPage({super.key});
+  const AddListingPage({Key? key}) : super(key: key);
 
   @override
   State<AddListingPage> createState() => _AddListingPageState();
@@ -15,256 +17,161 @@ class AddListingPage extends StatefulWidget {
 
 class _AddListingPageState extends State<AddListingPage> {
   final _formKey = GlobalKey<FormState>();
-  final titleController = TextEditingController();
-  final descriptionController = TextEditingController();
-  final priceController = TextEditingController();
+  final _titleController = TextEditingController();
+  final _descController = TextEditingController();
+  final _priceController = TextEditingController();
+  File? _imageFile;
+  bool _isLoading = false;
 
-  List<File> _imageFiles = [];
-  bool _isUploading = false;
-  final ImagePicker _picker = ImagePicker();
-
-  Future pickImages() async {
-    final List<XFile>? pickedFiles = await _picker.pickMultiImage();
-    if (pickedFiles != null && pickedFiles.isNotEmpty) {
-      setState(() {
-        _imageFiles = pickedFiles.map((xfile) => File(xfile.path)).toList();
-      });
-    }
+  Future<void> _pickImage() async {
+    final picked = await ImagePicker().pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 75,
+    );
+    if (picked != null) setState(() => _imageFile = File(picked.path));
   }
 
-  Future<List<String>> uploadImages() async {
-    List<String> downloadUrls = [];
-    for (var imageFile in _imageFiles) {
-      String fileName = DateTime.now().millisecondsSinceEpoch.toString();
-      Reference ref =
-      FirebaseStorage.instance.ref().child('listing_images').child(fileName);
-      UploadTask uploadTask = ref.putFile(imageFile);
-      TaskSnapshot snapshot = await uploadTask;
-      String downloadUrl = await snapshot.ref.getDownloadURL();
-      downloadUrls.add(downloadUrl);
-    }
-    return downloadUrls;
-  }
+  Future<void> _submit() async {
+    if (!_formKey.currentState!.validate() || _imageFile == null) return;
+    setState(() => _isLoading = true);
 
-  Future<void> addListing() async {
-    if (_formKey.currentState!.validate()) {
-      if (_imageFiles.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Please select at least one image")),
-        );
-        return;
-      }
+    try {
+      final fileName = '${DateTime.now().millisecondsSinceEpoch}.jpg';
 
-      setState(() {
-        _isUploading = true;
+      final ref = FirebaseStorage.instance.ref().child('listing_images/$fileName');
+      await ref.putFile(_imageFile!);
+      final imageUrl = await ref.getDownloadURL();
+
+      final userEmail = FirebaseAuth.instance.currentUser?.email;
+
+      await FirebaseFirestore.instance.collection('Listings').add({
+        'title': _titleController.text.trim(),
+        'description': _descController.text.trim(),
+        'price': double.parse(_priceController.text),
+        'imageUrls': [imageUrl],
+        'sellerId': userEmail,
+        'timestamp': FieldValue.serverTimestamp(),
       });
 
-      try {
-        List<String> imageUrls = await uploadImages();
-        String sellerId =
-            FirebaseAuth.instance.currentUser?.email ?? "Unknown";
-
-        await FirebaseFirestore.instance.collection('Listings').add({
-          'title': titleController.text,
-          'description': descriptionController.text,
-          'price': double.tryParse(priceController.text) ?? 0.0,
-          'imageUrls': imageUrls,
-          'sellerId': sellerId,
-          'createdAt': DateTime.now().toIso8601String(),
-        });
-
-        titleController.clear();
-        descriptionController.clear();
-        priceController.clear();
-        setState(() {
-          _imageFiles = [];
-        });
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Listing added successfully")),
-        );
-        Navigator.pop(context);
-      } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Error: ${e.toString()}")),
-        );
-      } finally {
-        setState(() {
-          _isUploading = false;
-        });
-      }
+      Navigator.of(context).pop();
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+    } finally {
+      setState(() => _isLoading = false);
     }
-  }
-
-  @override
-  void dispose() {
-    titleController.dispose();
-    descriptionController.dispose();
-    priceController.dispose();
-    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+    final cs = Theme.of(context).colorScheme;
     return Scaffold(
+      backgroundColor: cs.surface,
       appBar: AppBar(
-        backgroundColor: colorScheme.inversePrimary,
-        title: Row(
-          children: [
-            Icon(
-              Icons.add_business_rounded,
-              size: 32,
-              color: colorScheme.onPrimary,
-            ),
-            const SizedBox(width: 10),
-            const Text(
-              "Add Listing",
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-            ),
-          ],
-        ),
+        title: const Text('Create Listing'),
+        backgroundColor: cs.primary,
+        elevation: 1,
       ),
-      backgroundColor: colorScheme.background,
-      body: _isUploading
-          ? Center(child: CircularProgressIndicator(color: colorScheme.primary))
-          : SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.all(20.0),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Image Preview Section
-                _imageFiles.isNotEmpty
-                    ? SizedBox(
-                  height: 150,
-                  child: ListView.builder(
-                    scrollDirection: Axis.horizontal,
-                    itemCount: _imageFiles.length,
-                    itemBuilder: (context, index) {
-                      return Padding(
-                        padding: const EdgeInsets.only(right: 8.0),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(10),
-                          child: Image.file(
-                            _imageFiles[index],
-                            width: 150,
-                            height: 150,
-                            fit: BoxFit.cover,
-                          ),
+      body: SafeArea(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 600),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Card(
+                    elevation: 2,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Form(
+                        key: _formKey,
+                        child: Column(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: cs.primary.withOpacity(0.1),
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(Icons.add_shopping_cart, size: 48, color: cs.primary),
+                            ),
+                            const SizedBox(height: 16),
+                            GestureDetector(
+                              onTap: _pickImage,
+                              child: _imageFile == null
+                                  ? Container(
+                                height: 180,
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(color: cs.onSurface.withOpacity(0.3)),
+                                ),
+                                child: Icon(Icons.camera_alt, size: 48, color: cs.onSurface.withOpacity(0.5)),
+                              )
+                                  : ClipRRect(
+                                borderRadius: BorderRadius.circular(12),
+                                child: Image.file(_imageFile!, height: 180, width: double.infinity, fit: BoxFit.cover),
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            TextFormField(
+                              controller: _titleController,
+                              decoration: InputDecoration(
+                                labelText: 'Title',
+                                prefixIcon: const Icon(Icons.title),
+                                filled: true,
+                                fillColor: cs.background,
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                                focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: cs.primary)),
+                              ),
+                              validator: (v) => v == null || v.isEmpty ? 'Please enter a title' : null,
+                            ),
+                            const SizedBox(height: 12),
+                            TextFormField(
+                              controller: _descController,
+                              decoration: InputDecoration(
+                                labelText: 'Description',
+                                prefixIcon: const Icon(Icons.description),
+                                filled: true,
+                                fillColor: cs.background,
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                                focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: cs.primary)),
+                              ),
+                              maxLines: 3,
+                              validator: (v) => v == null || v.isEmpty ? 'Please enter a description' : null,
+                            ),
+                            const SizedBox(height: 12),
+                            TextFormField(
+                              controller: _priceController,
+                              decoration: InputDecoration(
+                                labelText: 'Price',
+                                prefixIcon: const Icon(Icons.attach_money),
+                                filled: true,
+                                fillColor: cs.background,
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                                focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: cs.primary)),
+                              ),
+                              keyboardType: TextInputType.numberWithOptions(decimal: true),
+                              validator: (v) { if (v == null || v.isEmpty) return 'Enter a price'; if (double.tryParse(v) == null) return 'Invalid number'; return null; },
+                            ),
+                            const SizedBox(height: 24),
+                          ],
                         ),
-                      );
-                    },
-                  ),
-                )
-                    : Container(
-                  height: 150,
-                  decoration: BoxDecoration(
-                    color: colorScheme.surface,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(
-                        color: colorScheme.primary, width: 1),
-                  ),
-                  child: Center(
-                    child: Text(
-                      "No images selected",
-                      style: TextStyle(color: colorScheme.onSurface),
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(height: 20),
-                // Select Images Button
-                ElevatedButton.icon(
-                  onPressed: pickImages,
-                  icon: Icon(Icons.image, color: colorScheme.onPrimary),
-                  label: const Text("Select Images"),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: colorScheme.primary,
-                    padding: const EdgeInsets.symmetric(vertical: 15),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
+                  const SizedBox(height: 24),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: _isLoading ? null : _submit,
+                      style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
+                      child: _isLoading ? const CircularProgressIndicator(color: Colors.white) : const Text('Publish Listing', style: TextStyle(fontSize: 16)),
                     ),
                   ),
-                ),
-                const SizedBox(height: 20),
-                // Title Field
-                TextFormField(
-                  controller: titleController,
-                  decoration: InputDecoration(
-                    labelText: "Title",
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                  ),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return "Enter a title";
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 20),
-                // Description Field
-                TextFormField(
-                  controller: descriptionController,
-                  decoration: InputDecoration(
-                    labelText: "Description",
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                  ),
-                  maxLines: 3,
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return "Enter a description";
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 20),
-                // Price Field
-                TextFormField(
-                  controller: priceController,
-                  decoration: InputDecoration(
-                    labelText: "Price",
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                  ),
-                  keyboardType: TextInputType.number,
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return "Enter a price";
-                    }
-                    if (double.tryParse(value) == null) {
-                      return "Enter a valid number";
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 30),
-                // Submit Button
-                ElevatedButton(
-                  onPressed: addListing,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: colorScheme.primary,
-                    padding: const EdgeInsets.symmetric(vertical: 15),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                  ),
-                  child: Text(
-                    "Add Listing",
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: colorScheme.onPrimary,
-                    ),
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),

@@ -11,8 +11,7 @@ class ConversationsPage extends StatelessWidget {
     return FirebaseAuth.instance.currentUser?.email ?? "unknown";
   }
 
-  /// Navigate to the profile page for the given user email.
-  /// (Make sure you have routes set up for '/seller_profile' and '/buyer_profile'.)
+
   void navigateToProfile(BuildContext context, String userEmail, bool isSeller) {
     // For this example, if isSeller is true then the other user is buyer.
     // Otherwise, the other user is seller.
@@ -20,7 +19,7 @@ class ConversationsPage extends StatelessWidget {
     Navigator.pushNamed(context, routeName, arguments: userEmail);
   }
 
-  /// Delete the conversation document (note: subcollections are not auto-deleted).
+
   Future<void> deleteConversation(
       BuildContext context, DocumentReference conversationRef) async {
     bool confirm = await showDialog<bool>(
