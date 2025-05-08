@@ -6,16 +6,16 @@ import 'chat_detail_page.dart';
 class ConversationsPage extends StatelessWidget {
   const ConversationsPage({Key? key}) : super(key: key);
 
-  /// Return the current user's email.
+
   String getCurrentUserEmail() {
     return FirebaseAuth.instance.currentUser?.email ?? "unknown";
   }
 
 
   void navigateToProfile(BuildContext context, String userEmail, bool isSeller) {
-    // For this example, if isSeller is true then the other user is buyer.
-    // Otherwise, the other user is seller.
+
     String routeName = isSeller ? '/buyer_profile' : '/seller_profile';
+
     Navigator.pushNamed(context, routeName, arguments: userEmail);
   }
 
@@ -26,6 +26,7 @@ class ConversationsPage extends StatelessWidget {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text("Delete Conversation"),
+
         content:
         const Text("Are you sure you want to delete this conversation?"),
         actions: [
@@ -35,6 +36,7 @@ class ConversationsPage extends StatelessWidget {
           ),
           TextButton(
             onPressed: () => Navigator.of(context).pop(true),
+
             child: const Text("Delete"),
           ),
         ],
@@ -49,6 +51,7 @@ class ConversationsPage extends StatelessWidget {
       } catch (e) {
         ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text("Error deleting conversation: $e")));
+
       }
     }
   }
@@ -60,6 +63,7 @@ class ConversationsPage extends StatelessWidget {
       appBar: AppBar(
         title: const Text("My Conversations"),
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
+
       ),
       body: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance
@@ -69,6 +73,7 @@ class ConversationsPage extends StatelessWidget {
             .snapshots(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting)
+
             return const Center(child: CircularProgressIndicator());
           if (snapshot.hasError)
             return Center(child: Text("Error: ${snapshot.error}"));
@@ -76,6 +81,7 @@ class ConversationsPage extends StatelessWidget {
           if (conversations.isEmpty)
             return const Center(child: Text("No conversations found."));
           return ListView.separated(
+
             itemCount: conversations.length,
             separatorBuilder: (context, index) =>
             const Divider(height: 1, color: Colors.grey),
@@ -87,8 +93,10 @@ class ConversationsPage extends StatelessWidget {
               final sellerId = data['sellerId'] ?? "unknown";
               final buyerId = data['buyerId'] ?? "unknown";
               final lastUpdated = data['lastUpdated'] as Timestamp?;
+
               String lastUpdatedStr = lastUpdated != null
                   ? DateTime.fromMillisecondsSinceEpoch(
+
                   lastUpdated.millisecondsSinceEpoch)
                   .toLocal()
                   .toString()

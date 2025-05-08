@@ -248,6 +248,7 @@ class _MyProfilePageState extends State<MyProfilePage> {
                       .collection('Reviews')
                       .orderBy('timestamp', descending: true)
                       .snapshots(),
+
                   builder: (context, rvSnap) {
                     if (!rvSnap.hasData) return const SizedBox();
                     final revs = rvSnap.data!.docs;
@@ -265,6 +266,7 @@ class _MyProfilePageState extends State<MyProfilePage> {
                           child: Padding(
                             padding: const EdgeInsets.all(12),
                             child: Column(
+
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Row(

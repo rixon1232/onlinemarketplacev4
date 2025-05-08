@@ -196,14 +196,17 @@ class _SellerProfilePageState extends State<SellerProfilePage> {
                               children: [
                                 if (img != null)
                                   ClipRRect(
+
                                     borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
                                     child: Image.network(img, height: 120, width: 160, fit: BoxFit.cover),
                                   ),
                                 Padding(
+
                                   padding: const EdgeInsets.all(8.0),
                                   child: Text(title, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.bold)),
                                 ),
                                 Padding(
+
                                   padding: const EdgeInsets.symmetric(horizontal: 8.0),
                                   child: Text(price, style: const TextStyle(color: Colors.green)),
                                 ),

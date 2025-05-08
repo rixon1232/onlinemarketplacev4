@@ -61,7 +61,9 @@ class _ToggleHomePageState extends State<ToggleHomePage> {
                 SizedBox(width: 8),
                 Expanded(
                   child: Text(
+
                     'Tips: dont accept online payments and read reviews before buying ',
+
                     style: TextStyle(color: Colors.black87),
                   ),
                 ),
@@ -81,6 +83,7 @@ class _ToggleHomePageState extends State<ToggleHomePage> {
               decoration: InputDecoration(
                 hintText: "Search listings...",
                 border: OutlineInputBorder(
+
                   borderRadius: BorderRadius.circular(14),
                 ),
                 prefixIcon: Icon(Icons.search),
@@ -95,6 +98,7 @@ class _ToggleHomePageState extends State<ToggleHomePage> {
             child: const Text(
               "New Listings",
               style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+
             ),
           ),
           Expanded(
@@ -107,6 +111,7 @@ class _ToggleHomePageState extends State<ToggleHomePage> {
       floatingActionButton: FloatingActionButton(
         onPressed: () {
           Navigator.pushNamed(context, '/add_listing');
+
         },
         child: Icon(Icons.add, color: colorScheme.onPrimary),
         backgroundColor: colorScheme.primary,

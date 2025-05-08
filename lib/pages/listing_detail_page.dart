@@ -4,12 +4,15 @@ import 'package:flutter/material.dart';
 
 class ListingDetailPage extends StatefulWidget {
   final Map<String, dynamic> listingData;
-  final String listingId; // Firestore document ID for this listing
+
+  final String listingId;
 
   const ListingDetailPage({
     Key? key,
     required this.listingData,
+
     required this.listingId,
+
   }) : super(key: key);
 
   @override
@@ -17,11 +20,13 @@ class ListingDetailPage extends StatefulWidget {
 }
 
 class _ListingDetailPageState extends State<ListingDetailPage> {
-  /// Generates a symmetric conversation ID using the listing ID, seller’s email, and buyer’s email.
+
   String getConversationId() {
     String buyerEmail = FirebaseAuth.instance.currentUser?.email ?? "unknown";
+
     String sellerEmail = widget.listingData['sellerId'] ?? "unknown";
-    // If listingId is empty, use a default string.
+
+    //
     String nonEmptyListingId =
     widget.listingId.trim().isEmpty ? "defaultListingId" : widget.listingId;
     List<String> participants = [buyerEmail, sellerEmail];
@@ -29,13 +34,13 @@ class _ListingDetailPageState extends State<ListingDetailPage> {
     return "${nonEmptyListingId}_${participants.join('_')}";
   }
 
-  /// Pre-populate the conversation document with metadata.
+
   Future<void> initializeConversation() async {
     final String buyerEmail = FirebaseAuth.instance.currentUser?.email ?? "unknown";
     final String sellerEmail = widget.listingData['sellerId'] ?? "unknown";
     final String conversationId = getConversationId();
 
-    // Create or merge the parent conversation document.
+
     await FirebaseFirestore.instance
         .collection('Chats')
         .doc(conversationId)
@@ -93,7 +98,7 @@ class _ListingDetailPageState extends State<ListingDetailPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Title and Price Row
+
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -126,6 +131,7 @@ class _ListingDetailPageState extends State<ListingDetailPage> {
                 const SizedBox(height: 16),
                 // Description
                 Text(
+
                   widget.listingData['description'] ?? "No description provided",
                   style: TextStyle(fontSize: 16, color: colorScheme.onBackground),
                 ),

@@ -34,9 +34,9 @@ class _RegisterPageState extends State<RegisterPage> {
       builder: (context) => const Center(child: CircularProgressIndicator()),
     );
 
-    // Check if passwords match
     if (passwordController.text != confirmPasswordController.text) {
       Navigator.pop(context);
+
       displayMessageToUser("Passwords do not match", context);
       return;
     }
@@ -44,6 +44,7 @@ class _RegisterPageState extends State<RegisterPage> {
     // Check strong password criteria
     if (!isPasswordStrong(passwordController.text)) {
       Navigator.pop(context);
+
       displayMessageToUser("Password must be at least 8 characters and include uppercase, lowercase, digit and symbol", context);
       return;
     }
@@ -88,7 +89,7 @@ class _RegisterPageState extends State<RegisterPage> {
     }
   }
 
-  // Create user document in Firestore
+
   Future<void> createUserDocument(UserCredential? userCredential) async {
     if (userCredential != null && userCredential.user != null) {
       await FirebaseFirestore.instance.collection("Users").doc(userCredential.user!.email).set({

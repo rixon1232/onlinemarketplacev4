@@ -1,5 +1,3 @@
-// File: /lib/pages/add_listing.dart
-// Changed storage path and Firestore field to 'imageUrls' list to match UI expectations.
 
 import 'dart:io';
 import 'package:flutter/material.dart';
@@ -18,7 +16,9 @@ class AddListingPage extends StatefulWidget {
 class _AddListingPageState extends State<AddListingPage> {
   final _formKey = GlobalKey<FormState>();
   final _titleController = TextEditingController();
+
   final _descController = TextEditingController();
+
   final _priceController = TextEditingController();
   File? _imageFile;
   bool _isLoading = false;
